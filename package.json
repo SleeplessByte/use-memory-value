@@ -9,7 +9,7 @@
     "build": "yarn build:main && yarn build:dts",
     "build:main": "yarn tsc --module commonjs && move .\\index.js .\\index.cjs.js",
     "build:dts": "yarn tsc --declaration --declarationMap --emitDeclarationOnly",
-    "prepublish": "yarn build",
+    "prepublish": "yarn build && yarn test",
     "test": "yarn jest"
   },
   "peerDependencies": {

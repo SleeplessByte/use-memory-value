@@ -43,39 +43,37 @@ import { useMemoryValue, useMutableMemoryValue } from 'use-memory-value';
 
 import { MY_STATE } from '../path/to/state';
 
-export function ReadOnlyBar() {
+function ReadOnlyBar() {
   const state = useMemoryValue(MY_STATE);
-
-  if (state.baz) {
-    return <span>actually foo: {state && state.foo}</span>;
-  }
-
-  return <span>bar: {state && state.bar}</span>;
+  return <h1>foo: {state && state.foo}</h1>;
 }
 
-export function CountingFoo() {
-  const [state, setState] = useMutableMemoryValue(MY_STATE);
+function CountingFoo() {
+  const [state, updateState] = useMutableMemoryValue(MY_STATE);
   const increment = () =>
-    setState((prev) =>
-      // Increment foo, unless there is no previous value.
-      prev ? { ...prev, foo: prev.foo + 1 } : { foo: 13, bar: 'no' }
-    );
+    updateState((prev) => ({ ...prev, foo: prev.foo + 1 }));
 
   return (
-    <button type="button" onPress={increment}>
+    <button type="button" onClick={increment}>
       Foo: {state.foo}
     </button>
   );
 }
 
-export function ActivateBaz() {
-  const [, setState] = useMutableMemoryValue(MY_STATE);
-  const activate = () => setState((prev) => ({ ...prev, baz: true }));
+function ActivateBaz() {
+  const [, updateState] = useMutableMemoryValue(MY_STATE);
+  const activate = () => updateState((prev) => ({ ...prev, baz: true }));
 
   return (
-    <button type="button" onPress={activate}>
+    <button type="button" onClick={activate}>
       Activate
     </button>
   );
 }
+```
+
+If the value should be persisted to (and initialized from) local storage, use `StoredMemoryValue`:
+
+```typescript
+export const MY_STATE = new StoredMemoryValue<State>('local.key.name');
 ```

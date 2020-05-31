@@ -1,8 +1,14 @@
 import localForage from 'localforage';
 import isEqual from 'react-fast-compare';
-import { useEffect, useState, useCallback } from 'react';
+import {
+  useEffect,
+  useState,
+  useCallback,
+  Dispatch,
+  SetStateAction,
+} from 'react';
 
-const global: { current: LocalForage } = { current: localForage };
+const globals: { current: LocalForage } = { current: localForage };
 
 /**
  * Allows you to override the local forage instance that is used. Normally it
@@ -10,7 +16,7 @@ const global: { current: LocalForage } = { current: localForage };
  * @param instance
  */
 export function setLocalForageInstance(instance: LocalForage) {
-  global.current = instance;
+  globals.current = instance;
 }
 
 export type Unsubscribe = () => void;
@@ -18,8 +24,8 @@ export type Listener<T> = (value: Readonly<AnyValue<T>>) => void;
 
 export type UndeterminedValue = undefined;
 export type NoValue = null;
-export type Update<T> = (value: Readonly<AnyValue<T>> | undefined) => void;
 export type AnyValue<T> = T | UndeterminedValue;
+export type Update<T> = Dispatch<SetStateAction<AnyValue<T>>>;
 
 export interface AnyMemoryValue<T> {
   current: AnyValue<T>;
@@ -113,7 +119,7 @@ export class StoredMemoryValue<T> implements AnyMemoryValue<T | NoValue> {
   }
 
   private read() {
-    global.current.getItem(this.storageKey).then(
+    globals.current.getItem(this.storageKey).then(
       (stored: any) => {
         if (stored) {
           this.emit(stored, false);
@@ -130,11 +136,11 @@ export class StoredMemoryValue<T> implements AnyMemoryValue<T | NoValue> {
       return this.clear();
     }
 
-    global.current.setItem(this.storageKey, storable).catch(() => {});
+    globals.current.setItem(this.storageKey, storable).catch(() => {});
   }
 
   private clear() {
-    global.current.removeItem(this.storageKey).catch(() => {});
+    globals.current.removeItem(this.storageKey).catch(() => {});
   }
 }
 
@@ -150,8 +156,12 @@ export function useMutableMemoryValue<T>(
   const [state, setState] = useState<AnyValue<T>>(value.current);
 
   const update = useCallback(
-    (nextValue: AnyValue<T>) => {
-      value.emit(nextValue);
+    (nextValue: AnyValue<T> | ((prev: AnyValue<T>) => AnyValue<T>)) => {
+      if (nextValue instanceof Function) {
+        value.emit(nextValue(value.current));
+      } else {
+        value.emit(nextValue);
+      }
     },
     [value]
   );

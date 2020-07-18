@@ -1,12 +1,12 @@
 import localForage from 'localforage';
-import isEqual from 'react-fast-compare';
 import {
-  useEffect,
-  useState,
-  useCallback,
   Dispatch,
   SetStateAction,
+  useCallback,
+  useEffect,
+  useState,
 } from 'react';
+import isEqual from 'react-fast-compare';
 
 const globals: { current: LocalForage } = { current: localForage };
 
@@ -108,39 +108,40 @@ export class StoredMemoryValue<T> implements AnyMemoryValue<T | NoValue> {
     newOnly: boolean = true
   ) {
     if (newOnly && isEqual(value, this.current)) {
-      return;
-    }
-
-    if (store) {
-      this.write(value);
+      return Promise.resolve(value);
     }
 
     this.value.emit(value, false, false);
+
+    if (!store) {
+      return value;
+    }
+
+    return this.write(value);
   }
 
-  private read() {
-    globals.current.getItem(this.storageKey).then(
-      (stored: any) => {
-        if (stored) {
-          this.emit(stored, false);
-        } else {
-          this.emit(null, false);
-        }
-      },
-      () => {}
-    );
+  private read(): Promise<T | null> {
+    return globals.current.getItem(this.storageKey).then((stored: any) => {
+      if (stored) {
+        this.emit(stored, false);
+        return stored;
+      } else {
+        this.emit(null, false);
+        return null;
+      }
+    });
   }
 
-  private write(storable: T | null | undefined) {
+  private write(storable: T | null | undefined): Promise<unknown> {
     if (storable === undefined) {
       return this.clear();
     }
 
-    globals.current.setItem(this.storageKey, storable).catch(() => {});
+    return globals.current.setItem(this.storageKey, storable);
   }
 
-  private clear() {
-    globals.current.removeItem(this.storageKey).catch(() => {});
+  private clear(): Promise<unknown> {
+    return globals.current.removeItem(this.storageKey);
   }
 }
 

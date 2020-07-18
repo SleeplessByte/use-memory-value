@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
 import localForage from 'localforage';
 
@@ -10,6 +10,7 @@ import {
   useMutableMemoryValue,
   setLocalForageInstance,
 } from './index';
+import { act } from 'react-dom/test-utils';
 
 interface State {
   foo: number;
@@ -63,9 +64,11 @@ function ActivateBaz() {
 function StoredState() {
   const [state, updateState] = useMutableMemoryValue(MY_STORED_STATE);
   const increment = () =>
-    updateState((prev) =>
-      prev ? { ...prev, foo: prev.foo + 1 } : INITIAL_STATE
-    );
+    act(() => {
+      updateState((prev) =>
+        prev ? { ...prev, foo: prev.foo + 1 } : INITIAL_STATE
+      );
+    });
 
   return (
     <button type="button" onClick={increment}>
@@ -123,8 +126,23 @@ test('it can store to local storage', async () => {
   const stored = await StorageInstance.getItem('my.stored.value');
   expect(stored).toBeFalsy();
 
+  const waiting = new Promise((resolve, reject) => {
+    const unsub = MY_STORED_STATE.subscribe(() => {
+      unsub();
+      resolve();
+    }, false);
+
+    setTimeout(() => {
+      unsub();
+      reject(new Error('timedout'));
+    }, 5000);
+  });
+
   // First test regular update for memory
   fireEvent.click(screen.getAllByRole('button')[0]);
+
+  await waiting;
+
   expect(MY_STORED_STATE.current).toStrictEqual(INITIAL_STATE);
 
   // Now see if that was persisted

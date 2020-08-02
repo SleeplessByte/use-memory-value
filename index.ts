@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useState,
+  useLayoutEffect,
 } from 'react';
 import isEqual from 'react-fast-compare';
 
@@ -167,7 +168,7 @@ export function useMutableMemoryValue<T>(
     [value]
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     return value.subscribe(setState);
   }, [value, setState]);
 

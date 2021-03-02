@@ -3,4 +3,7 @@ node_modules
 index.*
 !index.ts
 !index.test.tsx
+log.*
+!log.ts
+
 tsconfig.tsbuildinfo

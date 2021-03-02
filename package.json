@@ -1,6 +1,6 @@
 {
   "name": "use-memory-value",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Hooks for global state in memory and localstorage",
   "main": "index.cjs.js",
   "types": "index.d.ts",
@@ -15,7 +15,7 @@
     "build": "yarn build:main && yarn build:dts",
     "build:main": "yarn tsc --module commonjs && move .\\index.js .\\index.cjs.js",
     "build:dts": "yarn tsc --declaration --declarationMap --emitDeclarationOnly",
-    "prepublish": "yarn build && yarn test",
+    "prepare": "yarn build && yarn test",
     "test": "yarn jest"
   },
   "peerDependencies": {
@@ -49,6 +49,10 @@
     "index.cjs.js",
     "index.ts",
     "index.d.ts",
-    "index.d.ts.map"
+    "index.d.ts.map",
+    "log.js",
+    "log.ts",
+    "log.d.ts",
+    "log.d.ts.map"
   ]
 }

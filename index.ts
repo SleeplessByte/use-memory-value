@@ -13,6 +13,7 @@ import {
 import isEqual from 'react-fast-compare';
 
 import { disableWarnings, warn } from './log';
+
 export { disableWarnings };
 
 const globals: { current: LocalForage } = { current: localForage };
@@ -43,18 +44,16 @@ interface ReadonlySerializableArray
   extends ReadonlyArray<Serializable | undefined> {}
 
 export type Unsubscribe = () => void;
-export type Listener<T extends Serializable> = (
+export type Listener<T = any> = (
   value: Readonly<AnyValue<T>>
 ) => Promise<unknown> | void;
 
 export type UndeterminedValue = undefined;
 export type NoValue = null;
-export type Update<T extends Serializable> = Dispatch<
-  SetStateAction<AnyValue<T> | undefined>
->;
-export type AnyValue<T extends Serializable> = T | UndeterminedValue;
+export type Update<T> = Dispatch<SetStateAction<AnyValue<T> | undefined>>;
+export type AnyValue<T = any> = T | UndeterminedValue;
 
-export interface AnyMemoryValue<T extends Serializable> {
+export interface AnyMemoryValue<T = unknown> {
   current: AnyValue<T>;
   subscribe(listener: Listener<T>, emit?: boolean): Unsubscribe;
   unsubscribe(listener: Listener<T>): void;
@@ -64,7 +63,7 @@ export interface AnyMemoryValue<T extends Serializable> {
     newOnly?: boolean
   ): Promise<AnyValue<T>>;
 }
-export class MemoryValue<T extends Serializable> implements AnyMemoryValue<T> {
+export class MemoryValue<T = any> implements AnyMemoryValue<T> {
   private listeners: Listener<T>[];
   private value: T | undefined;
 
@@ -194,27 +193,59 @@ export class StoredMemoryValue<T extends Serializable>
   }
 }
 
-export function useMemoryValue<T extends Serializable>(
+export function useMemoryValue<T extends Serializable = Serializable>(
+  value: StoredMemoryValue<T>
+): Readonly<AnyValue<T>>;
+export function useMemoryValue<T = any>(
+  value: MemoryValue<T>
+): Readonly<AnyValue<T>>;
+export function useMemoryValue<T = unknown>(
+  value: AnyMemoryValue<T>
+): Readonly<AnyValue<T>>;
+
+export function useMemoryValue<T>(
   value: AnyMemoryValue<T>
 ): Readonly<AnyValue<T>> {
   return useMutableMemoryValue(value)[0];
 }
 
-export function useMemoryRef<T extends Serializable>(
+export function useMemoryRef<T extends Serializable = Serializable>(
+  value: StoredMemoryValue<T>
+): RefObject<AnyValue<T>>;
+export function useMemoryRef<T = any>(
+  value: MemoryValue<T>
+): RefObject<AnyValue<T>>;
+export function useMemoryRef<T = unknown>(
+  value: AnyMemoryValue<T>
+): RefObject<AnyValue<T>>;
+
+export function useMemoryRef<T>(
   value: AnyMemoryValue<T>
 ): RefObject<AnyValue<T>> {
   return useMutableMemoryRef(value);
 }
 
-export function useMutableMemoryValue<T extends Serializable>(
+export function useMutableMemoryValue<T extends Serializable = Serializable>(
+  value: StoredMemoryValue<T>
+): [Readonly<AnyValue<T>>, Update<T>];
+export function useMutableMemoryValue<T = any>(
+  value: MemoryValue<T>
+): [Readonly<AnyValue<T>>, Update<T>];
+export function useMutableMemoryValue<T = unknown>(
+  value: AnyMemoryValue<T>
+): [Readonly<AnyValue<T>>, Update<T>];
+
+export function useMutableMemoryValue<T>(
   value: AnyMemoryValue<T>
 ): [Readonly<AnyValue<T>>, Update<T>] {
   const [state, setState] = useState<AnyValue<T>>(value.current);
 
   const update = useCallback(
     (nextValue: AnyValue<T> | ((prev: AnyValue<T>) => AnyValue<T>)) => {
-      if (nextValue instanceof Function || typeof nextValue === 'function') {
-        value.emit(nextValue(value.current));
+      if (typeof nextValue === 'function') {
+        value.emit(
+          (nextValue as (prev: AnyValue<T>) => AnyValue<T>)(value.current)
+        );
       } else {
         value.emit(nextValue);
       }
@@ -229,7 +260,17 @@ export function useMutableMemoryValue<T extends Serializable>(
   return [state, update];
 }
 
-export function useMutableMemoryRef<T extends Serializable>(
+export function useMutableMemoryRef<T extends Serializable = Serializable>(
+  value: StoredMemoryValue<T>
+): MutableRefObject<AnyValue<T>>;
+export function useMutableMemoryRef<T = any>(
+  value: MemoryValue<T>
+): MutableRefObject<AnyValue<T>>;
+export function useMutableMemoryRef<T = unknown>(
+  value: AnyMemoryValue<T>
+): MutableRefObject<AnyValue<T>>;
+
+export function useMutableMemoryRef<T>(
   value: AnyMemoryValue<T>
 ): MutableRefObject<AnyValue<T>> {
   const ref = useRef(value.current);

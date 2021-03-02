@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/extend-expect';
-import { fireEvent, render, waitFor } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import localForage from 'localforage';
 import React from 'react';
 import { act } from 'react-dom/test-utils';

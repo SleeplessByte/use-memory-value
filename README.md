@@ -2,6 +2,8 @@
 
 Hooks for global state in memory and localstorage. It's like context, but only one state per value; allows you to subscribe and update values from far away.
 
+Using Expo? Check out this implementation: [`expo-use-memory-value`](https://github.com/SleeplessByte/expo-use-memory-value).
+
 ## Installation
 
 ```bash
@@ -76,4 +78,20 @@ If the value should be persisted to (and initialized from) local storage, use `S
 
 ```typescript
 export const MY_STATE = new StoredMemoryValue<State>('local.key.name');
+```
+
+## TypeScript warnings
+
+It is _important_ to use `type` and not `interface` when using this in conjunction with TypeScript. The reason for this is that `interfaces` are _extendible_ and thus we can not safely say that the final resolved shape is serializable (JSON-compatible). `types` are fixed, and thus can be checked.
+
+You want this because non-serializable fields would be lost during serialization/deserialization, and thus can cause run-time issues.
+
+If you get errors that the type is not `Serializable`, make sure you're only using `type` and not `interface`.
+
+## Localforage configuration
+
+You can set the instance yourself by importing
+
+```typescript
+import { setLocalForageInstance } from 'expo-use-memory-value/storage.web';
 ```

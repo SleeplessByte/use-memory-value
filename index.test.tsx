@@ -1,22 +1,22 @@
-import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import localForage from 'localforage';
-
-import {
-  StoredMemoryValue,
-  MemoryValue,
-  useMemoryValue,
-  useMutableMemoryValue,
-  setLocalForageInstance,
-} from './index';
+import React from 'react';
 import { act } from 'react-dom/test-utils';
 
-interface State {
+import {
+  MemoryValue,
+  setLocalForageInstance,
+  StoredMemoryValue,
+  useMemoryValue,
+  useMutableMemoryValue,
+} from './index';
+
+type State = {
   foo: number;
   bar: string;
   baz?: boolean;
-}
+};
 
 const INITIAL_STATE: State = {
   foo: 42,
@@ -127,9 +127,11 @@ test('it can store to local storage', async () => {
   expect(stored).toBeFalsy();
 
   const waiting = new Promise((resolve, reject) => {
-    const unsub = MY_STORED_STATE.subscribe(() => {
+    const unsub = MY_STORED_STATE.subscribe((next) => {
       unsub();
-      resolve();
+
+      // Flush promises
+      setTimeout(() => resolve(next), 1);
     }, false);
 
     setTimeout(() => {
@@ -141,7 +143,7 @@ test('it can store to local storage', async () => {
   // First test regular update for memory
   fireEvent.click(screen.getAllByRole('button')[0]);
 
-  await waiting;
+  await act(() => waiting);
 
   expect(MY_STORED_STATE.current).toStrictEqual(INITIAL_STATE);
 
@@ -167,7 +169,7 @@ test('it can read from local storage', async () => {
   return new Promise((resolve) =>
     TestState.subscribe((next) => {
       expect(next).toStrictEqual(injectedState);
-      resolve();
+      resolve(next);
     })
   );
 });

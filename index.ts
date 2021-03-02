@@ -1,13 +1,19 @@
 import localForage from 'localforage';
 import {
   Dispatch,
+  MutableRefObject,
+  RefObject,
   SetStateAction,
   useCallback,
-  useEffect,
-  useState,
   useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
 } from 'react';
 import isEqual from 'react-fast-compare';
+
+import { disableWarnings, warn } from './log';
+export { disableWarnings };
 
 const globals: { current: LocalForage } = { current: localForage };
 
@@ -20,22 +26,45 @@ export function setLocalForageInstance(instance: LocalForage) {
   globals.current = instance;
 }
 
+export type Serializable =
+  | boolean
+  | number
+  | string
+  | null
+  | SerializableArray
+  | ReadonlySerializableArray
+  | SerializableMap;
+
+interface SerializableMap {
+  [key: string]: Serializable | undefined;
+}
+interface SerializableArray extends Array<Serializable | undefined> {}
+interface ReadonlySerializableArray
+  extends ReadonlyArray<Serializable | undefined> {}
+
 export type Unsubscribe = () => void;
-export type Listener<T> = (value: Readonly<AnyValue<T>>) => void;
+export type Listener<T extends Serializable> = (
+  value: Readonly<AnyValue<T>>
+) => Promise<unknown> | void;
 
 export type UndeterminedValue = undefined;
 export type NoValue = null;
-export type AnyValue<T> = T | UndeterminedValue;
-export type Update<T> = Dispatch<SetStateAction<AnyValue<T>>>;
+export type Update<T extends Serializable> = Dispatch<
+  SetStateAction<AnyValue<T> | undefined>
+>;
+export type AnyValue<T extends Serializable> = T | UndeterminedValue;
 
-export interface AnyMemoryValue<T> {
+export interface AnyMemoryValue<T extends Serializable> {
   current: AnyValue<T>;
   subscribe(listener: Listener<T>, emit?: boolean): Unsubscribe;
   unsubscribe(listener: Listener<T>): void;
-  emit(value: AnyValue<T>, store?: boolean, newOnly?: boolean): void;
+  emit(
+    value: AnyValue<T>,
+    store?: boolean,
+    newOnly?: boolean
+  ): Promise<AnyValue<T>>;
 }
-
-export class MemoryValue<T> implements AnyMemoryValue<T> {
+export class MemoryValue<T extends Serializable> implements AnyMemoryValue<T> {
   private listeners: Listener<T>[];
   private value: T | undefined;
 
@@ -64,17 +93,23 @@ export class MemoryValue<T> implements AnyMemoryValue<T> {
     }
   }
 
-  emit(value: T | undefined, _store: boolean = false, newOnly: boolean = true) {
+  async emit(
+    value: T | undefined,
+    _store: boolean = false,
+    newOnly: boolean = true
+  ) {
     if (newOnly && isEqual(this.value, value)) {
-      return;
+      return value;
     }
 
     this.value = value;
-    this.listeners.forEach((listener) => listener(value));
+    await Promise.all(this.listeners.map(async (listener) => listener(value)));
+    return value;
   }
 }
 
-export class StoredMemoryValue<T> implements AnyMemoryValue<T | NoValue> {
+export class StoredMemoryValue<T extends Serializable>
+  implements AnyMemoryValue<T | NoValue> {
   private value: MemoryValue<T | NoValue>;
 
   constructor(
@@ -87,79 +122,98 @@ export class StoredMemoryValue<T> implements AnyMemoryValue<T | NoValue> {
     this.storageKey = storageKey;
 
     if (hydrate) {
-      this.read();
+      this.hydrate();
     }
   }
 
-  get current(): T | null | undefined {
+  public get current(): T | null | undefined {
     return this.value.current;
   }
 
-  subscribe(listener: Listener<T | NoValue>, emit: boolean = true) {
+  public subscribe(listener: Listener<T | NoValue>, emit: boolean = true) {
     return this.value.subscribe(listener, emit);
   }
 
-  unsubscribe(listener: Listener<T | NoValue>) {
+  public unsubscribe(listener: Listener<T | NoValue>) {
     return this.value.unsubscribe(listener);
   }
 
-  emit(
+  public async emit(
     value: T | null | undefined,
     store: boolean = true,
     newOnly: boolean = true
-  ) {
+  ): Promise<AnyValue<T> | null> {
     if (newOnly && isEqual(value, this.current)) {
-      return Promise.resolve(value);
-    }
-
-    this.value.emit(value, false, false);
-
-    if (!store) {
       return value;
     }
 
-    return this.write(value);
+    if (store) {
+      await this.write(value);
+    }
+
+    return this.value.emit(value, false, false);
   }
 
-  private read(): Promise<T | null> {
-    return globals.current.getItem(this.storageKey).then((stored: any) => {
-      if (stored) {
-        this.emit(stored, false);
-        return stored;
-      } else {
-        this.emit(null, false);
-        return null;
+  public async hydrate() {
+    return globals.current.getItem(this.storageKey).then(
+      (value: any) => {
+        if (value) {
+          return this.emit(value, false);
+        } else {
+          return this.emit(null, false);
+        }
+      },
+      (error) => {
+        warn(error);
+        return this.value;
       }
-    });
+    );
   }
 
-  private write(storable: T | null | undefined): Promise<unknown> {
+  /**
+   * Write the new value. Don't call this directly, use emit instead.
+   *
+   * A few values have special meaning:
+   * - null: writes null to the storage
+   * - undefined: removes this completely from storage
+   */
+  private async write(storable: T | null | undefined): Promise<unknown> {
     if (storable === undefined) {
       return this.clear();
     }
 
-    return globals.current.setItem(this.storageKey, storable);
+    return globals.current.setItem(this.storageKey, storable).catch(warn);
   }
 
-  private clear(): Promise<unknown> {
-    return globals.current.removeItem(this.storageKey);
+  /**
+   * Remove this completely from storage. Don't call this directly, use
+   * emit(undefined) instead.
+   */
+  private async clear(): Promise<unknown> {
+    return globals.current.removeItem(this.storageKey).catch(warn);
   }
 }
 
-export function useMemoryValue<T>(
+export function useMemoryValue<T extends Serializable>(
   value: AnyMemoryValue<T>
 ): Readonly<AnyValue<T>> {
   return useMutableMemoryValue(value)[0];
 }
 
-export function useMutableMemoryValue<T>(
+export function useMemoryRef<T extends Serializable>(
+  value: AnyMemoryValue<T>
+): RefObject<AnyValue<T>> {
+  return useMutableMemoryRef(value);
+}
+
+export function useMutableMemoryValue<T extends Serializable>(
   value: AnyMemoryValue<T>
 ): [Readonly<AnyValue<T>>, Update<T>] {
   const [state, setState] = useState<AnyValue<T>>(value.current);
 
   const update = useCallback(
     (nextValue: AnyValue<T> | ((prev: AnyValue<T>) => AnyValue<T>)) => {
-      if (nextValue instanceof Function) {
+      if (nextValue instanceof Function || typeof nextValue === 'function') {
         value.emit(nextValue(value.current));
       } else {
         value.emit(nextValue);
@@ -173,4 +227,31 @@ export function useMutableMemoryValue<T>(
   }, [value, setState]);
 
   return [state, update];
+}
+
+export function useMutableMemoryRef<T extends Serializable>(
+  value: AnyMemoryValue<T>
+): MutableRefObject<AnyValue<T>> {
+  const ref = useRef(value.current);
+
+  const mutableRef = useMemo(() => {
+    return Object.freeze({
+      get current() {
+        return ref.current;
+      },
+
+      set current(next: AnyValue<T>) {
+        value.emit(next);
+        ref.current = next;
+      },
+    });
+  }, [ref]);
+
+  useLayoutEffect(() => {
+    return value.subscribe((value) => {
+      ref.current = value;
+    });
+  }, [value, ref]);
+
+  return mutableRef;
 }

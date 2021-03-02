@@ -1,6 +1,6 @@
 {
   "name": "use-memory-value",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Hooks for global state in memory and localstorage",
   "main": "index.cjs.js",
   "types": "index.d.ts",
